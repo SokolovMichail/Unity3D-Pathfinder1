@@ -1,6 +1,8 @@
-﻿using System.Collections;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Priority_Queue;
+using UnityEditor.Experimental.GraphView;
 
 public class Grid : MonoBehaviour
 {
@@ -23,16 +25,16 @@ public class Grid : MonoBehaviour
     {
         foreach (PathNode node in grid)
         {
-            //  Пока что считаем все вершины проходимыми, без учёта препятствий
-            node.walkable = true;
-            /*node.walkable = !Physics.CheckSphere(node.body.transform.position, 1);
+            //Вершина считается проходимой, если она не сталкивается ни с чем.
+            //node.walkable = true;
+            node.walkable = !Physics.CheckSphere(node.body.transform.position, 1);
             if (node.walkable)
                 node.Fade();
             else
             {
-                node.Illuminate();
+                node.Obstructed();
                 Debug.Log("Not walkable!");
-            }*/
+            }
         }
     }
 
@@ -66,17 +68,15 @@ public class Grid : MonoBehaviour
         List<Vector2Int> nodes = new List<Vector2Int>();
         for (int x = current.x - 1; x <= current.x + 1; ++x)
             for (int y = current.y - 1; y <= current.y + 1; ++y)
-                if (x >= 0 && y >= 0 && x < grid.GetLength(0) && y < grid.GetLength(1) && (x != current.x || y != current.y))
+                if (x >= 0 && y >= 0 && x < grid.GetLength(0) && y < grid.GetLength(1) && (x != current.x || y != current.y) && grid[x,y].walkable)
                     nodes.Add(new Vector2Int(x, y));
                 return nodes;
     }
 
     /// <summary>
-    /// Вычисление "кратчайшего" между двумя вершинами сетки
+    /// Очищаем все узлы и вызываем пересчет, проходимы ли они
     /// </summary>
-    /// <param name="startNode">Координаты начального узла пути (индексы элемента в массиве grid)</param>
-    /// <param name="finishNode">Координаты конечного узла пути (индексы элемента в массиве grid)</param>
-    void calculatePath(Vector2Int startNode, Vector2Int finishNode)
+    void ResetNodes()
     {
         //  Очищаем все узлы - сбрасываем отметку родителя, снимаем подсветку
         foreach (var node in grid)
@@ -87,32 +87,44 @@ public class Grid : MonoBehaviour
         
         //  На данный момент вызов этого метода не нужен, там только устанавливается проходимость вершины. Можно добавить обработку препятствий
         CheckWalkableNodes();
+    }
 
-        //  Реализуется аналог волнового алгоритма, причём найденный путь не будет являться оптимальным 
+    /// <summary>
+    /// Вычисление "кратчайшего" между двумя вершинами сетки
+    /// </summary>
+    /// <param name="startNode">Координаты начального узла пути (индексы элемента в массиве grid)</param>
+    /// <param name="finishNode">Координаты конечного узла пути (индексы элемента в массиве grid)</param>
+    void calculatePath(Vector2Int startNode, Vector2Int finishNode)
+    {
+        ResetNodes();
+        //  Реализуется уже алгоритм А*
 
         PathNode start = grid[startNode.x, startNode.y];
 
         //  Начальную вершину отдельно изменяем
         start.ParentNode = null;
         start.Distance = 0;
-        
+        HashSet<Vector2Int> closed = new HashSet<Vector2Int>();
         //  Очередь вершин в обработке - в A* необходимо заменить на очередь с приоритетом
-        Queue<Vector2Int> nodes = new Queue<Vector2Int>();
+        SimplePriorityQueue<Vector2Int> opened = new SimplePriorityQueue<Vector2Int>();
         //  Начальную вершину помещаем в очередь
-        nodes.Enqueue(startNode);
+        opened.Enqueue(startNode,0);
         //  Пока не обработаны все вершины (очередь содержит узлы для обработки)
-        while(nodes.Count != 0)
+        while(opened.Count != 0)
         {
-            Vector2Int current = nodes.Dequeue();
+            Vector2Int current = opened.Dequeue();
             //  Если достали целевую - можно заканчивать (это верно и для A*)
             if (current == finishNode) break;
+            if (closed.Contains(current)) continue;
+            // Добавляем в список посещенных текущую вершину
+            closed.Add(current);
             //  Получаем список соседей
             var neighbours = GetNeighbours(current);
             foreach (var node in neighbours)
                 if(grid[node.x, node.y].walkable && grid[node.x, node.y].Distance > grid[current.x, current.y].Distance + PathNode.Dist(grid[node.x, node.y], grid[current.x, current.y]))
                 {
                     grid[node.x, node.y].ParentNode = grid[current.x, current.y];
-                    nodes.Enqueue(node);
+                    opened.Enqueue(node,PathNode.Dist(grid[node.x, node.y], grid[finishNode.x, finishNode.y]));
                 }
         }
         //  Восстанавливаем путь от целевой к стартовой
@@ -129,7 +141,7 @@ public class Grid : MonoBehaviour
     {
         //  Чтобы не вызывать этот метод каждый кадр, устанавливаем интервал вызова в 1000 кадров
         if (Time.frameCount < updateAtFrame) return;
-        updateAtFrame = Time.frameCount + 1000;
+        updateAtFrame = Time.frameCount + 100;
 
         calculatePath(new Vector2Int(0, 0), new Vector2Int(grid.GetLength(0)-1, grid.GetLength(1)-1));
     }

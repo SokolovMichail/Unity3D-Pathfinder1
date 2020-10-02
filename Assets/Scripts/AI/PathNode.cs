@@ -32,7 +32,7 @@ public class PathNode //: MonoBehaviour
     }
 
     /// <summary>
-    /// Устанавливаем родителя и обновляем расстояние от него до текущей вершины. Неоптимально - дважды расстояние считается
+    /// Устанавливаем родителя и обновляем расстояние от него до текущей вершины. Неоптимально - дважды расстояние считается(Это где? Один раз, все чин по чину!)
     /// </summary>
     /// <param name="parent"></param>
     private void SetParent(PathNode parent)
@@ -41,7 +41,7 @@ public class PathNode //: MonoBehaviour
         parentNode = parent;
         //  Вычисляем расстояние
         if (parent != null)
-            distance = parent.Distance + Vector3.Distance(body.transform.position, parent.body.transform.position);
+            distance = parent.Distance + Dist(this, parent);
         else
             distance = float.PositiveInfinity;
     }
@@ -76,7 +76,7 @@ public class PathNode //: MonoBehaviour
     /// </summary>
     public void Illuminate()
     {
-        body.GetComponent<Renderer>().material.color = Color.red;
+        body.GetComponent<Renderer>().material.color = Color.green;
     }
     
     /// <summary>
@@ -85,5 +85,10 @@ public class PathNode //: MonoBehaviour
     public void Fade()
     {
         body.GetComponent<Renderer>().material.color = Color.blue;
+    }
+    
+    public void Obstructed()
+    {
+        body.GetComponent<Renderer>().material.color = Color.red;
     }
 }
